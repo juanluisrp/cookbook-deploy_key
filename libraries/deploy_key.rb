@@ -93,11 +93,13 @@ module DeployKey
   end
 
   def get_key(key)
+    Chef::Log.info("Get key #{key} from server #{url}")
     response = request(:get, url)
     unless Net::HTTPOK      === response ||
            Net::HTTPCreated === response
       raise "Could not get list of keys from repository: #{response.code} #{response.body}"
     end
+    Chef::Log.info("Server response: #{response.body}")
     keys = JSON.parse response.body
     keys.find { |k| k["key"].strip == key.strip }
   end
