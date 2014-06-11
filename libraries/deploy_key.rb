@@ -17,23 +17,28 @@ require 'net/https'
 
 module DeployKey
   def url(path = '')
-    URI.parse case self
+    urlParsed = URI.parse case self
               when Chef::Provider::DeployKeyBitbucket then "https://bitbucket.org/api/1.0/repositories/#{new_resource.repo}/deploy-keys#{path}"
               when Chef::Provider::DeployKeyGithub    then "https://api.github.com/repos/#{new_resource.repo}/keys#{path}"
               when Chef::Provider::DeployKeyGitlab    then "#{new_resource.api_url}/api/v3/projects/#{new_resource.repo}/keys#{path}"
               end
+    Chef::Log.info("Server URL: #{urlParsed}")
+    return urlParsed
   end
 
   def add_token(request)
     case self
-    when Chef::Provider::DeployKeyGitlab
-      then request.add_field "PRIVATE-TOKEN", new_resource.credentials[:token]
-    else request.add_field "Authorization", "token #{new_resource.credentials[:token]}"
+    when Chef::Provider::DeployKeyGitlab then
+        Chef::Log.info("Added private token to request: PRIVATE-TOKEN")
+        request.add_field "PRIVATE-TOKEN", new_resource.credentials[:token]
+    else 
+        request.add_field "Authorization", "token #{new_resource.credentials[:token]}"
     end
     request
   end
 
   def auth(request)
+    Chef::Log.info("Starting authorization")
     request.add_field "User-Agent", "Chef Deploy Key"
     request.add_field "Content-Type", "application/json"
     if new_resource.credentials[:token]
@@ -47,6 +52,7 @@ module DeployKey
   end
 
   def request(req_type, url, body = nil)
+    Chef::Log.info("Performing request #{req_type} to #{url} with body #{body}")
     req = case req_type
           when :get    then Net::HTTP::Get.new(url.path)
           when :post   then Net::HTTP::Post.new(url.path)
@@ -61,6 +67,7 @@ module DeployKey
   end
 
   def add_key(label, key)
+    Chef::Log.info("Adding label #{label} with key #{key}")
     body = {
         case self
         when Chef::Provider::DeployKeyBitbucket then :label
@@ -70,6 +77,7 @@ module DeployKey
         :key => key
       }.to_json
     response = request(:post, url, body)
+    Chef::Log.info("Response received: #{response}")
     unless Net::HTTPOK      === response ||
            Net::HTTPCreated === response
       raise "Could not add SSH key #{new_resource.label} to Bitbucket: #{response.code} #{response.body}"
